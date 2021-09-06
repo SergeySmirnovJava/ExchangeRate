@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class DataToCurrency {
@@ -19,54 +20,56 @@ public class DataToCurrency {
         currencyDto.setCurrentCurrency(this.calculateCurrency(jsonNodeExchange));
         currencyDto.setOppositeCurrency(this.calculateOppositeCurrency(jsonNodeExchange));
         currencyDto.setExchangeCourse(this.calculateExchangeCourse(jsonNodeExchange));
+        currencyDto.setDate(this.calculateDates(jsonNodeExchange));
     }
 
     private String calculateCurrency(JsonNode jsonNodeExchange){
-        JsonNode jsonNode = jsonNodeExchange.path("structure").path("dimensions").path("series");
-        for(JsonNode nodeTypes : jsonNode){
-            if(nodeTypes.get("name").asText().equals("Currency")){
-                for(JsonNode nodeValue : nodeTypes.path("values")){
-                    return nodeValue.path("name").asText();
-                }
-            }
-        }
-        return "Error getting current currency";
+        Iterator<JsonNode> jsonNodeIterator = jsonNodeExchange.path("structure")
+                                                              .path("dimensions")
+                                                              .path("series")
+                                                              .elements();
+        jsonNodeIterator.next();
+        JsonNode nodeCurrency = jsonNodeIterator.next().path("values");
+        return nodeCurrency.elements().next().path("name").asText();
     }
 
     private String calculateOppositeCurrency(JsonNode jsonNodeExchange){
-        JsonNode jsonNode = jsonNodeExchange.path("structure").path("dimensions").path("series");
-        System.out.println(jsonNode.getNodeType());
-        System.out.println(jsonNode.isArray());
-        for(JsonNode nodeTypes : jsonNode){
-            if(nodeTypes.get("name").asText().equals("Currency denominator")){
-                for(JsonNode nodeValue : nodeTypes.path("values")){
-                    System.out.println(nodeValue.asText());
-                    return nodeValue.path("name").asText();
-                }
-            }
-        }
-        return "Error getting opposite currency";
+        Iterator<JsonNode> jsonNodeIterator = jsonNodeExchange.path("structure")
+                                                              .path("dimensions")
+                                                              .path("series")
+                                                              .elements();
+        jsonNodeIterator.next();
+        jsonNodeIterator.next();
+        JsonNode nodeCurrency = jsonNodeIterator.next().path("values");
+        return nodeCurrency.elements().next().path("name").asText();
     }
 
     private Double[] calculateExchangeCourse(JsonNode jsonNodeExchange){
         int exchangeCounter = 0;
         List<Double> tempExchangeData = new ArrayList<>();
-        JsonNode jsonNode = jsonNodeExchange.path("dataSets");
-        for(JsonNode nodeDimension : jsonNode){
-            JsonNode nodeExchangeNode = nodeDimension.path("series").path("0:0:0:0:0").path("observations").path(Integer.toString(exchangeCounter));
-            System.out.println(nodeExchangeNode.isArray());
-            System.out.println(nodeExchangeNode.getNodeType());
-           // for(JsonNode node : nodeExchangeNode){
-                tempExchangeData.add(nodeExchangeNode.elements().next().doubleValue());
-
-           // }
+        JsonNode jsonNode = jsonNodeExchange.path("dataSets").elements().next()
+                                                                        .path("series")
+                                                                        .path("0:0:0:0:0")
+                                                                        .path("observations");
+        JsonNode nodeData = jsonNode.path(Integer.toString(exchangeCounter));
+        while (!nodeData.isMissingNode()){
+            tempExchangeData.add(nodeData.elements().next().doubleValue());
             exchangeCounter++;
+            nodeData = jsonNode.path(Integer.toString(exchangeCounter));
         }
         return tempExchangeData.toArray(new Double[0]);
     }
 
-    private void setDate(){
-        currencyDto.setDate(null);
+    private String[] calculateDates(JsonNode jsonNodeObservations){
+        List<String> tempDateArr = new ArrayList<>();
+        JsonNode jsonNode = jsonNodeObservations.path("structure")
+                                                .path("dimensions")
+                                                .path("observation")
+                                                .elements().next().path("values");
+        for(JsonNode jsonNodeDate : jsonNode){
+            tempDateArr.add(jsonNodeDate.path("name").asText());
+        }
+        return tempDateArr.toArray(new String[0]);
     }
 
     public CurrencyDto getExchangeResult(){
